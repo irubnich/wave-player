@@ -4,6 +4,7 @@
   </head>
   <body>
     <input id="file" type="file" />
+    <input id="volume" type="text" value="1" />
 
     <script>
       const fileReader = new FileReader()
@@ -97,6 +98,14 @@
           const context = new AudioContext()
           const source = context.createBufferSource()
           source.connect(context.destination)
+
+          // Attach a GainNode for volume control
+          const gainNode = context.createGain()
+          source.connect(gainNode)
+          gainNode.connect(context.destination)
+
+          const volume = document.getElementById("volume")
+          volume.addEventListener('change', (event) => { gainNode.gain.value = parseFloat(event.target.value) })
 
           // Turn our ArrayBuffer into a solid Array
           const ArrayToUse = eval("Int" + metadata.bitDepth + "Array") // Barf
