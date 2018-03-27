@@ -7,6 +7,17 @@ source.connect(context.destination)
 // "Interface" if you can call it one
 //
 
+const fileInput = document.getElementById('file')
+fileInput.addEventListener('change', () => loadFile(fileInput.files[0]))
+
+const controls = document.getElementById('controls')
+const statusMsg = document.getElementById('status')
+const fileInfo = document.getElementById('fileInfo')
+const sampleRateInfo = document.getElementById('sampleRate')
+const bitDepthInfo = document.getElementById('bitDepth')
+const channelInfo = document.getElementById('channels')
+const lengthInfo = document.getElementById('length')
+
 const play = () => {
   // The first time playback starts, source.start() can kick it off.
   // After a pause, context.resume() must be used.
@@ -17,25 +28,8 @@ const play = () => {
   }
 }
 const pause = () => context.suspend()
-
-const fileInput = document.getElementById('file')
-fileInput.addEventListener('change', () => {
-  loadFile(fileInput.files[0])
-})
-
-const controls = document.getElementById('controls')
-const statusMsg = document.getElementById('status')
-const fileInfo = document.getElementById('fileInfo')
-const sampleRateInfo = document.getElementById('sampleRate')
-const bitDepthInfo = document.getElementById('bitDepth')
-const channelInfo = document.getElementById('channels')
-const lengthInfo = document.getElementById('length')
-
-const playControl = document.getElementById('play')
-playControl.onclick = play
-
-const pauseControl = document.getElementById('pause')
-pauseControl.onclick = pause
+document.getElementById('play').onclick = play
+document.getElementById('pause').onclick = pause
 
 const enableInterface = (metadata) => {
   statusMsg.innerHTML = 'File loaded!'
@@ -52,6 +46,7 @@ const disableInterface = () => {
   statusMsg.innerHTML = 'Loading...'
   fileInfo.style.display = 'none'
   controls.style.display = 'none'
+  fileInput.style.display = 'none' // Not in this demo!
 }
 
 //
@@ -90,6 +85,7 @@ const loadFile = (file) => {
   }
 
   readBytes(file, 0, 4).then(result => {
+    // Start of header!
     // This should be "RIFF"
     if (arrayBufferToString(result) !== 'RIFF') throw new Error('Unsupported format.')
     return readBytes(file, 4, 8)
@@ -101,6 +97,7 @@ const loadFile = (file) => {
     if (arrayBufferToString(result) !== 'WAVE') throw new Error('Unsupported format.')
     return readBytes(file, 12, 16)
   }).then(result => {
+    // Start of format!
     // This should be "fmt"
     if (arrayBufferToString(result) !== 'fmt ') throw new Error('Unsupported format.')
     return readBytes(file, 16, 20)
@@ -140,7 +137,7 @@ const loadFile = (file) => {
   }).then(result => {
     return readBytes(file, metadata.formatEnd, metadata.formatEnd + 4)
   }).then(result => {
-    // data start
+    // Start of data!
     if (arrayBufferToString(result) !== 'data') throw new Error('Unsupported format.')
     return readBytes(file, metadata.formatEnd + 4, metadata.formatEnd + 8)
   }).then(result => {
@@ -160,19 +157,22 @@ const loadFile = (file) => {
 }
 
 const loadAudioBuffer = (metadata, arrayBuffer) => {
-  // Turn our ArrayBuffer into a solid Array
-  const ArrayToUse = eval('Int' + metadata.bitDepth + 'Array') // Barf
-  const rawData = new ArrayToUse(arrayBuffer)
-
   // Initialize an empty buffer using metadata
   const buffer = context.createBuffer(metadata.numChannels, metadata.sampleRate * metadata.length, metadata.sampleRate)
 
+  // Turn our ArrayBuffer into a solid Array
+  // e.g Int16Array
+  const ArrayToUse = eval('Int' + metadata.bitDepth + 'Array') // Barf
+  const rawData = new ArrayToUse(arrayBuffer)
+
   // Copy raw audio data into the buffer per channel
   for (let channel = 0; channel < metadata.numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel)
+    const channelData = buffer.getChannelData(channel) // This is an empty buffer that we can add to!
 
+    // i = offset, pointer into rawData
+    // channelPointer = pointer into the current channel's buffer
     for (let i = channel, channelPointer = 0; i < rawData.length; i += metadata.numChannels, channelPointer++) {
-      channelData[channelPointer] = rawData[i] / 2 ** metadata.bitDepth
+      channelData[channelPointer] = rawData[i] / 2 ** metadata.bitDepth // Division squishes a range into [-1.0, 1.0], which WebAudio requires
     }
   }
 
